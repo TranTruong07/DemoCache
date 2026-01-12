@@ -87,6 +87,10 @@ namespace DemoForRedis
             builder.Services.AddScoped<Redis.RedisContext>();
             builder.Services.AddScoped<Redis.IWeatherForecastCache, Redis.WeatherForecastCache>();
 
+            // DI worker
+            builder.Services.AddHostedService<MongdbWorker>();
+            builder.Services.AddHostedService<Redis.RedisWorker>();
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
