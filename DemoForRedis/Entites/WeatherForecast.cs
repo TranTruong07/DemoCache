@@ -1,7 +1,7 @@
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson;
 
-namespace DemoForRedis
+namespace DemoForRedis.Entites
 {
     [BsonIgnoreExtraElements]
     public class WeatherForecast

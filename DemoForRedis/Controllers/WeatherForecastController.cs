@@ -1,5 +1,9 @@
+﻿using DemoForRedis.Entites;
+using DemoForRedis.Service.WeatherForecastService.Interface;
+using DemoForRedis.Service.WeatherForecastService.Models.Input;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using System.Threading.Tasks;
 
 namespace DemoForRedis.Controllers
 {
@@ -8,12 +12,14 @@ namespace DemoForRedis.Controllers
     public class WeatherForecastController : ControllerBase
     {
         private readonly IMemoryCache _memoryCache;
-        private readonly MongoRepository<WeatherForecast> _repository;
+        private readonly IWeatherForecastService _weatherForecastService;
+        private readonly ILogger<WeatherForecastController> _logger;
 
-        public WeatherForecastController(IMemoryCache memoryCache, MongoRepository<WeatherForecast> repository)
+        public WeatherForecastController(IMemoryCache memoryCache, IWeatherForecastService weatherForecastService, ILogger<WeatherForecastController> logger)
         {
             _memoryCache = memoryCache;
-            _repository = repository;
+            _weatherForecastService = weatherForecastService;
+            _logger = logger;
         }
 
         private static readonly string[] Summaries = new[]
@@ -21,59 +27,48 @@ namespace DemoForRedis.Controllers
             "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
         };
 
-        
 
-        [HttpGet(Name = "GetWeatherForecast")]
-        public async Task<IActionResult> Get([FromQuery] string id)
+        /// <summary>
+        /// Tạo mới WeatherForecast
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("create-weather-forecast")]
+        public async Task<IActionResult> SetCache([FromBody] CreateWeatherForecastInput request)
         {
-            var weatherForecast = await _repository.GetByIdAsync(id);
-            if (weatherForecast == null)
+            try
             {
-                return NotFound();
+                var response = await _weatherForecastService.CreateWeatherForecast(request);
+                return Ok(response);
             }
-
-            return Ok(weatherForecast);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in controller creating weather forecast: {Message}", ex.Message);
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
 
-        [HttpPost("create-cache")]
-        public async Task<IActionResult> SetCache([FromBody] CacheRequest request)
+        /// <summary>
+        /// Lấy WeatherForecast theo Id
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [HttpGet("get-weather-forecast")]
+        public async Task<IActionResult> GetCache([FromQuery] string id)
         {
-            var key = $"weatherforecast-{request.Date}";
-            var weatherForecast = new WeatherForecast
+            try
             {
-                Date = request.Date,
-                TemperatureC = request.TemperatureC,
-                Summary = request.Summary
-            };
-
-            await _repository.AddAsync(weatherForecast);
-            // Store in memory cache for 5 minutes
-
-            _memoryCache.Set(key, weatherForecast, TimeSpan.FromMinutes(5));
-            return Ok(weatherForecast);
-        }
-
-        [HttpGet("get-cache")]
-        public IActionResult GetCache([FromQuery] DateOnly date)
-        {
-            var key = $"weatherforecast-{date}";
-            if (_memoryCache.TryGetValue<WeatherForecast>(key, out var weatherForecast))
-            {
-                return Ok(weatherForecast);
+                var res = await _weatherForecastService.GetWeatherForecastById(id);
+                return Ok(res);
             }
-            return NotFound();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in controller getting weather forecast: {Message}", ex.Message);
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
 
     }
 
-    public class CacheRequest
-    {
-        public DateOnly Date { get; set; }
 
-        public int TemperatureC { get; set; }
-
-        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-
-        public string? Summary { get; set; }
-    }
 }

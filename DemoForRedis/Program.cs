@@ -1,7 +1,15 @@
 
+using DemoForRedis.Config;
+using DemoForRedis.Database;
+using DemoForRedis.Database.WeatherForecast;
+using DemoForRedis.Database.WeatherForecast.Interface;
+using DemoForRedis.Service.WeatherForecastService;
+using DemoForRedis.Service.WeatherForecastService.Interface;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using MongoDB.Bson.Serialization.Conventions;
 using MongoDB.Driver;
+using StackExchange.Redis;
 
 namespace DemoForRedis
 {
@@ -17,6 +25,12 @@ namespace DemoForRedis
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+
+            // add log file
+            builder.Logging.AddFile(pathFormat: "Logs/log-{Date}.txt",
+                fileSizeLimitBytes: null,
+                retainedFileCountLimit: 20,
+                isJson: false);
 
             builder.Services.Configure<MongoConfig>(builder.Configuration.GetSection("MongoConfig"));
             var mongoConfig = builder.Configuration.GetSection("MongoConfig").Get<MongoConfig>();
@@ -47,9 +61,31 @@ namespace DemoForRedis
             ConventionRegistry.Register("IgnoreExtraElements", conventionPack, t => true);
 
             // cache 
+            string redisConnectionString = builder.Configuration["RedisConfig:ConnectionString"] ?? throw new Exception("Redis connection string is not configured.");
+            builder.Services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConnectionString;
+                options.InstanceName = "DemoForRedisInstance";
+            });
+            // set up the connection multiplexer
+            builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+            {
+                return ConnectionMultiplexer.Connect(redisConnectionString);
+            });
+            
             builder.Services.AddMemoryCache();
 
-            builder.Services.AddScoped(typeof(MongoRepository<>));
+            // DI DAO
+            builder.Services.AddScoped<MongodbContext>();
+            builder.Services.AddScoped<IDAOWeatherForecast, DAOWeatherForecast>();
+
+            // DI Services
+            builder.Services.AddScoped<IWeatherForecastService, WeatherForecastService>();
+
+
+            // DI Redis
+            builder.Services.AddScoped<Redis.RedisContext>();
+            builder.Services.AddScoped<Redis.IWeatherForecastCache, Redis.WeatherForecastCache>();
 
             var app = builder.Build();
 

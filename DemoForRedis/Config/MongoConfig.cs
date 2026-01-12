@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DemoForRedis
+namespace DemoForRedis.Config
 {
    
     public class MongoConfig
