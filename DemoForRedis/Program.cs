@@ -6,6 +6,7 @@ using DemoForRedis.Database.WeatherForecast.Interface;
 using DemoForRedis.Service.WeatherForecastService;
 using DemoForRedis.Service.WeatherForecastService.Interface;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson.Serialization.Conventions;
 using MongoDB.Driver;
@@ -70,6 +71,8 @@ namespace DemoForRedis
             // set up the connection multiplexer
             builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
             {
+                var options = ConfigurationOptions.Parse(redisConnectionString);
+                options.AbortOnConnectFail = false;
                 return ConnectionMultiplexer.Connect(redisConnectionString);
             });
             
@@ -91,6 +94,19 @@ namespace DemoForRedis
             builder.Services.AddHostedService<MongdbWorker>();
             builder.Services.AddHostedService<Redis.RedisWorker>();
 
+            // health check
+            builder.Services.AddHealthChecks()
+                .AddRedis(redisConnectionString, "redis")
+                .AddMongoDb(
+                    (sp =>
+                    {
+                        var mongoClient = sp.GetRequiredService<IMongoClient>();
+                        return mongoClient;
+                    }),
+                    name: "mongodb",
+                    failureStatus: HealthStatus.Unhealthy,
+                    timeout: TimeSpan.FromSeconds(5));
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -106,6 +122,7 @@ namespace DemoForRedis
 
 
             app.MapControllers();
+            app.MapHealthChecks("/health");
 
             app.Run();
         }
